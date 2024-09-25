@@ -1,11 +1,12 @@
+use heck::ToSnakeCase;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse::Parse;
 use syn::punctuated::{Pair, Punctuated};
 use syn::token::Bracket;
 use syn::{
-    bracketed, parse_macro_input, parse_quote, Block, Expr, FnArg, Ident, ItemFn, ItemStruct,
-    LitInt, LitStr, Pat, Path, Signature, Token, Type,
+    bracketed, parse_macro_input, parse_quote, Block, FnArg, Ident, ItemFn, ItemStruct, LitStr,
+    Pat, Path, Signature, Token, Type,
 };
 
 #[proc_macro_attribute]
@@ -26,13 +27,13 @@ pub fn openxr(attr: TokenStream, item: TokenStream) -> TokenStream {
         sig: Signature {
             abi: Some(parse_quote!(extern "system")),
             ident: syn::parse(attr).expect("You must specify a function name"),
-            output: parse_quote!(-> openxr_sys::Result),
+            output: parse_quote!(-> openxr::sys::Result),
             ..func.sig.clone()
         },
         block: Box::new(Block {
             stmts: vec![parse_quote! {
                 match #name(#args) {
-                    Ok(_) => openxr_sys::Result::SUCCESS,
+                    Ok(_) => openxr::sys::Result::SUCCESS,
                     Err(e) => e,
                 }
             }],
@@ -42,6 +43,7 @@ pub fn openxr(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
     quote! {
         #[no_mangle]
+        #[allow(non_snake_case)]
         #new_func
 
         #func
@@ -54,32 +56,26 @@ pub fn handle(attr: TokenStream, item: TokenStream) -> TokenStream {
     let item: ItemStruct = syn::parse(item).unwrap();
     let attr: Type = syn::parse(attr).unwrap();
     let ty = item.ident.clone();
+    let mod_name = Ident::new(&item.ident.to_string().to_snake_case(), item.ident.span());
     quote! {
         #item
 
-        #[doc(hidden)]
-        static REGISTRY: once_cell::sync::Lazy<dashmap::DashMap<u64, #ty, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>> = once_cell::sync::Lazy::new(|| std::default::Default::default());
-        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        mod #mod_name {
+	        #[doc(hidden)]
+	        static REGISTRY: std::sync::LazyLock<dashmap::DashMap<u64, super::#ty, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>> = std::sync::LazyLock::new(|| std::default::Default::default());
+	        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
-        #[doc(hidden)]
-        impl crate::handle::Handle for #attr {
-            type HandleType = #ty;
+	        #[doc(hidden)]
+	        impl quark::handle::HandleData for super::#ty {
+				type Handle = #attr;
 
-            fn raw(self) -> u64 {
-                self.into_raw()
-            }
-
-            fn from(raw: u64) -> Self {
-                Self::from_raw(raw)
-            }
-
-            fn registry<'a>() -> &'a once_cell::sync::Lazy<dashmap::DashMap<u64, #ty, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>> {
-                &REGISTRY
-            }
-
-            fn counter<'a>() -> &'a std::sync::atomic::AtomicU64 {
-                &COUNTER
-            }
+	            fn registry<'a>() -> &'a dashmap::DashMap<u64, Self, std::hash::BuildHasherDefault<rustc_hash::FxHasher>> {
+	                &REGISTRY
+	            }
+	            fn counter<'a>() -> &'a std::sync::atomic::AtomicU64 {
+	                &COUNTER
+	            }
+	        }
         }
     }.into()
 }
@@ -162,19 +158,19 @@ pub fn oxr_fns(tokens: TokenStream) -> TokenStream {
         )
     });
     quote! {
-        fn #name(instance: openxr_sys::Instance, name: &str) -> std::result::Result<openxr_sys::pfn::VoidFunction, openxr_sys::Result> {
+        fn #name(instance: openxr::sys::Instance, name: &str) -> std::result::Result<openxr::sys::pfn::VoidFunction, openxr::sys::Result> {
             match (name, instance.get()) {
                 #(
                     (stringify!(#no_inst_str), _) => Ok(unsafe { std::mem::transmute(#no_inst as usize)}),
                 )*
-                (_, Err(_)) => Err(openxr_sys::Result::ERROR_HANDLE_INVALID),
+                (_, Err(_)) => Err(openxr::sys::Result::ERROR_HANDLE_INVALID),
                 #(
                     (stringify!(#inst_str), Ok(_)) => Ok(unsafe { std::mem::transmute(#inst as usize)}),
                 )*
                 #(
                     #extensions
                 )*
-                (_, Ok(_)) => Err(openxr_sys::Result::ERROR_FUNCTION_UNSUPPORTED),
+                (_, Ok(_)) => Err(openxr::sys::Result::ERROR_FUNCTION_UNSUPPORTED),
             }
         }
     }.into()
