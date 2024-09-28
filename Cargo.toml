@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = ["proc-macros"]
+members = ["api_layer_test", "proc-macros"]
 
 [dependencies]
 # Monoxide crates
@@ -13,4 +13,5 @@ proc-macros = { path = "proc-macros" }
 # External dependencies
 dashmap = "6.1.0"
 rustc-hash = "2.0.0"
-openxr = { version = "0.19.0", default-features = false }
+openxr = { git = "https://github.com/technobaboo/openxrs.git", branch = "quark-hax", default-features = false }
+ustr = "1.0.0"

@@ -1,6 +1,5 @@
-#[macro_use]
-pub mod util;
 pub mod handle;
+pub mod util;
 pub mod prelude {
     pub use openxr::sys::Result as XrErr;
     pub use proc_macros::*;
@@ -9,7 +8,11 @@ pub mod prelude {
     pub use crate::util::*;
     pub use proc_macros::handle;
 }
-use openxr::{sys::InstanceCreateInfo, Entry};
+pub use openxr;
+use openxr::{
+    sys::{Instance, InstanceCreateInfo},
+    Entry,
+};
 use prelude::*;
 
 pub trait APILayerInstanceData: HandleData + Sized + Send + Sync + 'static {
@@ -32,7 +35,7 @@ macro_rules! api_layer {
         /// # Safety
         /// don't be stupid
         #[allow(non_snake_case)]
-        #[proc_macros::openxr(xrNegotiateLoaderApiLayerInterface)]
+        #[$crate::prelude::openxr(xrNegotiateLoaderApiLayerInterface)]
         pub unsafe fn negotiate_loader_api_layer_interface(
             loader_info: &openxr::sys::loader::XrNegotiateLoaderInfo,
             _api_layer_name: *const u8,
@@ -109,7 +112,7 @@ macro_rules! api_layer {
         /// # Safety
         /// you are gay
         #[allow(non_snake_case)]
-        #[proc_macros::openxr(xrCreateApiLayerInstance)]
+        #[$crate::prelude::openxr(xrCreateApiLayerInstance)]
         pub unsafe fn xr_create_api_layer_instance(
             info: *const openxr::sys::InstanceCreateInfo,
             api_layer_info: *const openxr::sys::loader::ApiLayerCreateInfo,
@@ -123,22 +126,12 @@ macro_rules! api_layer {
             let instance_info = &*info;
             let layer_info = &*api_layer_info;
 
-            // Perform any API layer-specific initialization here
-            // For example, you might want to log that the API layer is being created
-
-            // Call the next API layer or runtime's xrCreateInstance
-
             ((*layer_info.next_info).next_create_api_layer_instance)(
                 info,
                 api_layer_info,
                 instance,
             );
 
-            // The instance was created successfully
-            // Perform any additional setup for your API layer here
-            // For example, you might want to store some layer-specific data
-
-            // You can access the created instance via *instance
             let entry = openxr::Entry::from_get_instance_proc_addr(
                 (*layer_info.next_info).next_get_instance_proc_addr,
             )?;

@@ -1,0 +1,16 @@
+[package]
+name = "api_layer_test"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Monoxide crates
+quark = { path = "../" }
+
+# External dependencies
+dashmap = "6.1.0"
+rustc-hash = "2.0.0"
+ustr = "1.0.0"
