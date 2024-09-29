@@ -10,7 +10,30 @@ use syn::{
 };
 
 #[proc_macro_attribute]
-pub fn openxr(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn wrap_openxr(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let mut func: ItemFn = syn::parse(item).expect("Failed to parse function");
+
+    func.sig.abi = Some(parse_quote!(extern "system"));
+    func.sig.output = parse_quote!(-> openxr::sys::Result);
+
+    let block = &func.block;
+    // Modify the function body
+    func.block = Box::new(parse_quote! {{
+        let result = (|| #block)();
+        match result {
+            Ok(_) => openxr::sys::Result::SUCCESS,
+            Err(e) => e,
+        }
+    }});
+    // Generate the final TokenStream
+    quote! {
+        #func
+    }
+    .into()
+}
+
+#[proc_macro_attribute]
+pub fn export_openxr(attr: TokenStream, item: TokenStream) -> TokenStream {
     let func: ItemFn = syn::parse(item).expect("Failed to parse function");
     let name = func.sig.ident.clone();
     let args: Punctuated<Pat, Token![,]> = func

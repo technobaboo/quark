@@ -5,7 +5,7 @@ build-test:
     cargo build -p api_layer_test
 
 test-api-layer:
-    XR_ENABLE_API_LAYERS=XR_APILAYER_NOVENDOR_test XR_API_LAYER_PATH=$PWD xrgears
+    XR_ENABLE_API_LAYERS=XR_APILAYER_NOVENDOR_test XR_API_LAYER_PATH=$PWD hello_xr -G Vulkan
 
 build-test-api-layer:
 	just build-test; just test-api-layer

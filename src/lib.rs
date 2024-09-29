@@ -9,11 +9,9 @@ pub mod prelude {
     pub use proc_macros::handle;
 }
 pub use openxr;
-use openxr::{
-    sys::{Instance, InstanceCreateInfo},
-    Entry,
-};
+use openxr::{sys::InstanceCreateInfo, Entry};
 use prelude::*;
+pub use proc_macros::*;
 
 pub trait APILayerInstanceData: HandleData + Sized + Send + Sync + 'static {
     fn create(
@@ -28,14 +26,14 @@ pub trait APILayerInstanceData: HandleData + Sized + Send + Sync + 'static {
 macro_rules! api_layer {
 	(
 		instance_data: $instance_data:ty,
-		override_fns: [
-			$($fn_name:ident),*
-		]
+		override_fns: {
+			$($fn_name:ident: $override_fn:ident),*
+		}
 	) => {
         /// # Safety
         /// don't be stupid
         #[allow(non_snake_case)]
-        #[$crate::prelude::openxr(xrNegotiateLoaderApiLayerInterface)]
+        #[$crate::export_openxr(xrNegotiateLoaderApiLayerInterface)]
         pub unsafe fn negotiate_loader_api_layer_interface(
             loader_info: &openxr::sys::loader::XrNegotiateLoaderInfo,
             _api_layer_name: *const u8,
@@ -75,8 +73,8 @@ macro_rules! api_layer {
             api_layer_request.layer_api_version = CURRENT_API_VERSION;
 
             // Set function pointers
-            api_layer_request.get_instance_proc_addr = Some(xrGetInstanceProcAddr);
-            api_layer_request.create_api_layer_instance = Some(xrCreateApiLayerInstance);
+            api_layer_request.get_instance_proc_addr = Some(xr_get_instance_proc_addr);
+            api_layer_request.create_api_layer_instance = Some(xr_create_api_layer_instance);
 
             Ok(())
         }
@@ -86,33 +84,34 @@ macro_rules! api_layer {
         /// # Safety
         /// you are gay
         #[allow(non_snake_case, unreachable_code)]
-        pub unsafe extern "system" fn xrGetInstanceProcAddr(
+        pub unsafe extern "system" fn xr_get_instance_proc_addr(
             instance: openxr::sys::Instance,
             name: *const i8,
             function: *mut Option<openxr::sys::pfn::VoidFunction>,
         ) -> openxr::sys::Result {
-            let Ok(rusty_name) = str_from_const_char(name) else {
-            	return openxr::sys::Result::ERROR_VALIDATION_FAILURE;
+            let instance_data = match <$instance_data as $crate::handle::HandleData>::borrow_raw(instance) {
+                Ok(instance_data) => instance_data,
+                Err(e) => return e,
             };
-            *function = Some(match rusty_name {
-                $(stringify!($fn_name) => std::mem::transmute($fn_name as *const ()),)*
-                // Add more function mappings here
-                _ => {
-               		let instance_data = match <$instance_data as $crate::handle::HandleData>::borrow_raw(instance) {
-	               		Ok(instance_data) => instance_data,
-		                Err(e) => return e,
-	                };
-                	let entry = instance_data.entry();
-                 	return (entry.fp().get_instance_proc_addr)(instance, name, function);
-                },
-            });
-            openxr::sys::Result::SUCCESS
+
+            let Ok(rusty_name) = str_from_const_char(name) else {
+                return openxr::sys::Result::ERROR_VALIDATION_FAILURE;
+            };
+            match rusty_name {
+                $(stringify!($fn_name) => {
+                    *function = Some(std::mem::transmute::<*const (), unsafe extern "system" fn()>(
+                        $override_fn as *const (),
+                    ));
+                    openxr::sys::Result::SUCCESS
+                },)*
+                _ => (instance_data.entry().fp().get_instance_proc_addr)(instance, name, function),
+            }
         }
 
         /// # Safety
         /// you are gay
         #[allow(non_snake_case)]
-        #[$crate::prelude::openxr(xrCreateApiLayerInstance)]
+        #[$crate::wrap_openxr]
         pub unsafe fn xr_create_api_layer_instance(
             info: *const openxr::sys::InstanceCreateInfo,
             api_layer_info: *const openxr::sys::loader::ApiLayerCreateInfo,

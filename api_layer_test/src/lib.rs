@@ -2,7 +2,7 @@ use openxr::{
     sys::{Instance, InstanceCreateInfo, Result as XrErr},
     Entry,
 };
-use quark::{api_layer, openxr, prelude::*, APILayerInstanceData};
+use quark::{openxr, prelude::*, APILayerInstanceData};
 
 #[handle(quark::openxr::sys::Instance)]
 pub struct InstanceData {
@@ -32,23 +32,25 @@ impl APILayerInstanceData for InstanceData {
     }
 }
 
-api_layer! {
+quark::api_layer! {
     instance_data: InstanceData,
-    override_fns: [
-        xrCreateActionSet
-    ]
+    override_fns: {
+        xrCreateActionSet: create_action_set
+    }
 }
 
-#[openxr(xrCreateActionSet)]
+#[quark::wrap_openxr]
 pub fn create_action_set(
     instance: Instance,
     create_info: &openxr::sys::ActionSetCreateInfo,
     action_set: &mut openxr::sys::ActionSet,
 ) -> XrResult {
-    let data = InstanceData::borrow_raw(instance)?;
+    println!(
+        "new action set named {}",
+        create_info.action_set_name.to_rust_string()
+    );
+    let data = InstanceData::borrow_raw(instance).unwrap();
     cvt(|| unsafe {
         (data.instance_functions.create_action_set)(instance, create_info, action_set)
-    })?;
-
-    Ok(())
+    })
 }

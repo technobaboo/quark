@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use core::str;
 use std::ffi::{c_char, CStr};
 
 /// # Safety
@@ -57,6 +58,15 @@ impl<S: AsRef<str>> CStringHelper for S {
     }
 }
 
+pub trait Rustify {
+    fn to_rust_string(&self) -> String;
+}
+impl<const S: usize> Rustify for [i8; S] {
+    fn to_rust_string(&self) -> String {
+        unsafe { String::from_utf8_unchecked(self.map(|n| n as u8).to_vec()) }
+    }
+}
+
 pub fn copy_str_to_buffer<const N: usize>(string: &str, buf: &mut [c_char; N]) {
     buf.fill(0);
     unsafe {
@@ -69,10 +79,10 @@ pub fn copy_str_to_buffer<const N: usize>(string: &str, buf: &mut [c_char; N]) {
 }
 
 // FFI helpers
-pub fn cvt<F: FnOnce() -> XrErr>(f: F) -> Result<openxr::sys::Result, openxr::sys::Result> {
+pub fn cvt<F: FnOnce() -> XrErr>(f: F) -> Result<(), openxr::sys::Result> {
     let x = openxr::sys::Result::from_raw((f)().into_raw());
     if x.into_raw() >= 0 {
-        Ok(x)
+        Ok(())
     } else {
         Err(x)
     }
