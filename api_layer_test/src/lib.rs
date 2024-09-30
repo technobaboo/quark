@@ -45,7 +45,7 @@ quark::api_layer! {
 #[quark::handle(openxr::sys::ActionSet)]
 pub struct ActionSetData {
     instance: openxr::Instance,
-    action_set: openxr::ActionSet,
+    _action_set: openxr::ActionSet,
 }
 
 #[quark::wrap_openxr]
@@ -62,14 +62,14 @@ pub fn xr_create_action_set(
     let name = create_info.action_set_name.to_rust_string()?;
     let localized_name = create_info.localized_action_set_name.to_rust_string()?;
 
-    let action_set = data
-        .instance
-        .create_action_set(name, localized_name, create_info.priority)?;
-    *original_action_set = action_set.as_raw();
+    let _action_set =
+        data.instance
+            .create_action_set(name, localized_name, create_info.priority)?;
+    *original_action_set = _action_set.as_raw();
 
     original_action_set.add_data(ActionSetData {
         instance: data.instance.clone(),
-        action_set,
+        _action_set,
     });
 
     Ok(())
