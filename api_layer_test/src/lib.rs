@@ -37,9 +37,8 @@ quark::api_layer! {
     instance_data: InstanceData,
     override_fns: {
         xrCreateActionSet: xr_create_action_set,
-        xrDestroyActionSet: xr_destroy_action_set
-        //,
-        // xrCreateAction: create_action
+        xrDestroyActionSet: xr_destroy_action_set,
+        xrCreateAction: create_action
     }
 }
 
@@ -56,8 +55,8 @@ pub fn xr_create_action_set(
     original_action_set: &mut openxr::sys::ActionSet,
 ) -> XrResult {
     println!(
-        "new action set named {}",
-        create_info.action_set_name.to_rust_string()?
+        "New action set named \"{}\"",
+        create_info.localized_action_set_name.to_rust_string()?
     );
     let data = instance.data()?;
     let name = create_info.action_set_name.to_rust_string()?;
@@ -76,13 +75,16 @@ pub fn xr_create_action_set(
     Ok(())
 }
 
-// #[quark::wrap_openxr]
-// pub fn create_action(
-//     action_set: ActionSet,
-//     create_info: &openxr::sys::ActionCreateInfo,
-//     action: &mut openxr::sys::Action,
-// ) -> XrResult {
-//     let action_set = action_set.data()?;
-// action_set.action_set.create_action(name, localized_name, subaction_paths)
-//     Ok(())
-// }
+#[quark::wrap_openxr]
+pub fn create_action(
+    action_set: openxr::sys::ActionSet,
+    create_info: &openxr::sys::ActionCreateInfo,
+    action: &mut openxr::sys::Action,
+) -> XrResult {
+    println!(
+        "Created action with name \"{}\"",
+        create_info.localized_action_name.to_rust_string()?
+    );
+    let instance = &action_set.data()?.instance;
+    cvt(|| unsafe { (instance.fp().create_action)(action_set, create_info, action) })
+}
