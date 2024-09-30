@@ -66,7 +66,7 @@ pub fn xr_create_action_set(
     create_info: &ActionSetCreateInfo,
     original_action_set: &mut openxr::sys::ActionSet,
 ) -> XrResult {
-    // to_rust_string() works on most openxr string types, makes code much much cleaner
+    // to_rust_string() works on most openxr string types, makes code much much cleaner (couldn't impl to_string since types are raw pointers and can't impl external traits for external things)
     println!(
         "New action set named \"{}\"",
         create_info.localized_action_set_name.to_rust_string()?
@@ -86,6 +86,7 @@ pub fn xr_create_action_set(
     // now attach the data to the handle in the registry so we can call `.data()` on the handle later
     original_action_set.add_data(ActionSetData {
         instance: data.instance.clone(),
+        // and don't forget to store the thing we just made (since openxrs destroys it on drop like we want it to)
         _action_set,
     });
 
