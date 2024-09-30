@@ -9,7 +9,7 @@ pub unsafe fn enumerate<I: Clone>(
     output_count: &mut Option<u32>,
     items_ptr: *mut I,
     items: &[I],
-) -> XrResult {
+) -> XrResult<()> {
     // if output_count.is_none() {
     // 	return Err(XrErr::ERROR_VALIDATION_FAILURE);
     // }
@@ -37,18 +37,6 @@ pub unsafe fn str_slice_from_const_arr<'a>(
     unsafe { std::slice::from_raw_parts(ptr, len) }
 }
 
-/// # Safety
-/// nya nya nya
-pub unsafe fn str_from_const_char<'a>(ptr: *const c_char) -> Result<&'a str, XrErr> {
-    if ptr.is_null() {
-        return Err(XrErr::ERROR_VALIDATION_FAILURE);
-    }
-
-    CStr::from_ptr(ptr)
-        .to_str()
-        .map_err(|_| XrErr::ERROR_VALIDATION_FAILURE)
-}
-
 pub trait CStringHelper {
     fn as_char_ptr(&self) -> *const i8;
 }
@@ -57,17 +45,26 @@ impl<S: AsRef<str>> CStringHelper for S {
         ustr::ustr(self.as_ref()).as_char_ptr()
     }
 }
+
 pub trait Rustify {
-    fn to_rust_string(&self) -> String;
+    fn to_rust_string(&self) -> Result<&str, XrErr>;
+}
+impl Rustify for *const c_char {
+    fn to_rust_string(&self) -> Result<&str, XrErr> {
+        if self.is_null() {
+            return Err(XrErr::ERROR_VALIDATION_FAILURE);
+        }
+
+        unsafe { CStr::from_ptr(*self) }
+            .to_str()
+            .map_err(|_| XrErr::ERROR_VALIDATION_FAILURE)
+    }
 }
 impl<const S: usize> Rustify for [i8; S] {
-    fn to_rust_string(&self) -> String {
-        let trimmed = self
-            .iter()
-            .take_while(|&&c| c != 0)
-            .map(|&c| c as u8)
-            .collect::<Vec<u8>>();
-        unsafe { String::from_utf8_unchecked(trimmed) }
+    fn to_rust_string(&self) -> Result<&str, XrErr> {
+        unsafe { CStr::from_ptr(self.as_ptr()) }
+            .to_str()
+            .map_err(|_| XrErr::ERROR_VALIDATION_FAILURE)
     }
 }
 

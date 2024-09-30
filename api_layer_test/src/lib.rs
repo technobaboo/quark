@@ -1,7 +1,7 @@
 use quark::{
     openxr::{
         self,
-        sys::{ActionSetCreateInfo, Instance, InstanceCreateInfo, Result as XrErr},
+        sys::{ActionSetCreateInfo, Instance, InstanceCreateInfo},
         Entry,
     },
     prelude::*,
@@ -17,10 +17,11 @@ impl APILayerInstanceData for InstanceData {
         entry: Entry,
         instance_info: &InstanceCreateInfo,
         instance: Instance,
-    ) -> Result<Self, XrErr> {
-        let app_name = unsafe {
-            str_from_const_char(instance_info.application_info.application_name.as_ptr())?
-        };
+    ) -> XrResult<Self> {
+        let app_name = instance_info
+            .application_info
+            .application_name
+            .to_rust_string()?;
         println!("got your new instance chief, app's named {app_name}");
         let instance = unsafe {
             openxr::Instance::from_raw(entry, instance, openxr::InstanceExtensions::default())
@@ -56,15 +57,15 @@ pub fn xr_create_action_set(
 ) -> XrResult {
     println!(
         "new action set named {}",
-        create_info.action_set_name.to_rust_string()
+        create_info.action_set_name.to_rust_string()?
     );
     let data = instance.data()?;
-    let name = create_info.action_set_name.to_rust_string();
-    let localized_name = create_info.localized_action_set_name.to_rust_string();
+    let name = create_info.action_set_name.to_rust_string()?;
+    let localized_name = create_info.localized_action_set_name.to_rust_string()?;
 
-    let action_set =
-        data.instance
-            .create_action_set(&name, &localized_name, create_info.priority)?;
+    let action_set = data
+        .instance
+        .create_action_set(name, localized_name, create_info.priority)?;
     *original_action_set = action_set.as_raw();
 
     original_action_set.add_data(ActionSetData {
@@ -78,8 +79,10 @@ pub fn xr_create_action_set(
 // #[quark::wrap_openxr]
 // pub fn create_action(
 //     action_set: ActionSet,
-//     create_info: &ActionCreateInfo,
-//     action: &mut Action,
+//     create_info: &openxr::sys::ActionCreateInfo,
+//     action: &mut openxr::sys::Action,
 // ) -> XrResult {
+//     let action_set = action_set.data()?;
+// action_set.action_set.create_action(name, localized_name, subaction_paths)
 //     Ok(())
 // }

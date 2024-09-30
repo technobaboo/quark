@@ -3,11 +3,12 @@ pub mod util;
 pub mod prelude {
     pub use openxr::sys::Result as XrErr;
     pub use proc_macros::*;
-    pub type XrResult = Result<(), XrErr>;
+    pub type XrResult<T> = Result<T, XrErr>;
     pub use crate::handle::*;
     pub use crate::util::*;
     pub use proc_macros::handle;
 }
+
 pub use openxr;
 use openxr::{sys::InstanceCreateInfo, Entry};
 use prelude::*;
@@ -18,7 +19,7 @@ pub trait APILayerInstanceData: Sized + Send + Sync + 'static {
         entry: Entry,
         instance_info: &InstanceCreateInfo,
         raw_instance: openxr::sys::Instance,
-    ) -> Result<Self, XrErr>;
+    ) -> XrResult<Self>;
     fn entry(&self) -> &Entry;
 }
 
@@ -38,7 +39,7 @@ macro_rules! api_layer {
 			loader_info: &openxr::sys::loader::XrNegotiateLoaderInfo,
 			_api_layer_name: *const u8,
 			api_layer_request: &mut openxr::sys::loader::XrNegotiateApiLayerRequest,
-		) -> $crate::prelude::XrResult {
+		) -> $crate::prelude::XrResult<()> {
 			use openxr::sys::loader::*;
 			use openxr::sys::CURRENT_API_VERSION;
 			if loader_info.ty != XrNegotiateLoaderInfo::TYPE
@@ -83,7 +84,7 @@ macro_rules! api_layer {
 				Ok(instance_data) => instance_data,
 				Err(e) => return e,
 			};
-			let Ok(rusty_name) = str_from_const_char(name) else {
+			let Ok(rusty_name) = <*const i8 as $crate::util::Rustify>::to_rust_string(&name) else {
 				return openxr::sys::Result::ERROR_VALIDATION_FAILURE;
 			};
 			match rusty_name {
@@ -131,15 +132,4 @@ macro_rules! api_layer {
 			Ok(())
 		}
 	};
-}
-
-#[macro_export]
-macro_rules! generate_destroy_function {
-    ($name:ident, $type:ty) => {
-        #[$crate::wrap_openxr]
-        pub fn $name(handle: $type) -> XrResult {
-            handle.remove_data();
-            Ok(())
-        }
-    };
 }

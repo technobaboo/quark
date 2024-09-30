@@ -23,7 +23,7 @@ pub trait Handle<Data: Any + Send + Sync + 'static>: Any + Copy {
             .try_map(|d| d.downcast_mut::<Data>())
             .map_err(|_| XrErr::ERROR_HANDLE_INVALID)
     }
-    fn validate(self) -> XrResult {
+    fn validate(self) -> XrResult<()> {
         if self.into_raw() == 0 {
             Err(XrErr::ERROR_HANDLE_INVALID)
         } else {
