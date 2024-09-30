@@ -12,7 +12,7 @@ use quark::{
 quark::api_layer! {
     // whatever struct you wanna use for your main instance data
     instance_data: InstanceData,
-    // any functions to override, don't forget the destroy functions for everything you add data to!
+    // any functions to override, don't forget the destroy functions for everything you add data to (except instance, that's already handled)!
     override_fns: {
         // <openxr function name>: <rust function name>
         xrCreateActionSet: xr_create_action_set,
@@ -21,6 +21,7 @@ quark::api_layer! {
     }
 }
 
+// put this for all your data structs for handles, will automatically create a destroy function for them
 #[quark::handle(openxr::sys::Instance)]
 pub struct InstanceData {
     instance: openxr::Instance,
@@ -48,6 +49,7 @@ impl APILayerInstanceData for InstanceData {
         self.instance.entry()
     }
 }
+// if you want to do stuff on instance destroy, just impl drop instead
 
 #[quark::handle(openxr::sys::ActionSet)]
 pub struct ActionSetData {
