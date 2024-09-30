@@ -1,14 +1,16 @@
-use openxr::{
-    sys::{Instance, InstanceCreateInfo, Result as XrErr},
-    Entry,
+use quark::{
+    openxr::{
+        self,
+        sys::{ActionSetCreateInfo, Instance, InstanceCreateInfo, Result as XrErr},
+        Entry,
+    },
+    prelude::*,
+    APILayerInstanceData,
 };
-use quark::{openxr, prelude::*, APILayerInstanceData};
 
-#[handle(quark::openxr::sys::Instance)]
+#[quark::handle(openxr::sys::Instance)]
 pub struct InstanceData {
-    entry: Entry,
-    instance: openxr::sys::Instance,
-    instance_functions: openxr::raw::Instance,
+    instance: openxr::Instance,
 }
 impl APILayerInstanceData for InstanceData {
     fn create(
@@ -20,37 +22,64 @@ impl APILayerInstanceData for InstanceData {
             str_from_const_char(instance_info.application_info.application_name.as_ptr())?
         };
         println!("got your new instance chief, app's named {app_name}");
-        let instance_functions = unsafe { openxr::raw::Instance::load(&entry, instance) }?;
-        Ok(InstanceData {
-            entry,
-            instance,
-            instance_functions,
-        })
+        let instance = unsafe {
+            openxr::Instance::from_raw(entry, instance, openxr::InstanceExtensions::default())
+        }?;
+        Ok(InstanceData { instance })
     }
     fn entry(&self) -> &Entry {
-        &self.entry
+        self.instance.entry()
     }
 }
 
 quark::api_layer! {
     instance_data: InstanceData,
     override_fns: {
-        xrCreateActionSet: create_action_set
+        xrCreateActionSet: xr_create_action_set,
+        xrDestroyActionSet: xr_destroy_action_set
+        //,
+        // xrCreateAction: create_action
     }
 }
 
+#[quark::handle(openxr::sys::ActionSet)]
+pub struct ActionSetData {
+    instance: openxr::Instance,
+    action_set: openxr::ActionSet,
+}
+
 #[quark::wrap_openxr]
-pub fn create_action_set(
+pub fn xr_create_action_set(
     instance: Instance,
-    create_info: &openxr::sys::ActionSetCreateInfo,
-    action_set: &mut openxr::sys::ActionSet,
+    create_info: &ActionSetCreateInfo,
+    original_action_set: &mut openxr::sys::ActionSet,
 ) -> XrResult {
     println!(
         "new action set named {}",
         create_info.action_set_name.to_rust_string()
     );
-    let data = InstanceData::borrow_raw(instance).unwrap();
-    cvt(|| unsafe {
-        (data.instance_functions.create_action_set)(instance, create_info, action_set)
-    })
+    let data = instance.data()?;
+    let name = create_info.action_set_name.to_rust_string();
+    let localized_name = create_info.localized_action_set_name.to_rust_string();
+
+    let action_set =
+        data.instance
+            .create_action_set(&name, &localized_name, create_info.priority)?;
+    *original_action_set = action_set.as_raw();
+
+    original_action_set.add_data(ActionSetData {
+        instance: data.instance.clone(),
+        action_set,
+    });
+
+    Ok(())
 }
+
+// #[quark::wrap_openxr]
+// pub fn create_action(
+//     action_set: ActionSet,
+//     create_info: &ActionCreateInfo,
+//     action: &mut Action,
+// ) -> XrResult {
+//     Ok(())
+// }

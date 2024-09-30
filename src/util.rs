@@ -57,13 +57,17 @@ impl<S: AsRef<str>> CStringHelper for S {
         ustr::ustr(self.as_ref()).as_char_ptr()
     }
 }
-
 pub trait Rustify {
     fn to_rust_string(&self) -> String;
 }
 impl<const S: usize> Rustify for [i8; S] {
     fn to_rust_string(&self) -> String {
-        unsafe { String::from_utf8_unchecked(self.map(|n| n as u8).to_vec()) }
+        let trimmed = self
+            .iter()
+            .take_while(|&&c| c != 0)
+            .map(|&c| c as u8)
+            .collect::<Vec<u8>>();
+        unsafe { String::from_utf8_unchecked(trimmed) }
     }
 }
 

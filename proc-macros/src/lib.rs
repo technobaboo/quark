@@ -1,6 +1,6 @@
 use heck::ToSnakeCase;
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::parse::Parse;
 use syn::punctuated::{Pair, Punctuated};
 use syn::token::Bracket;
@@ -25,11 +25,7 @@ pub fn wrap_openxr(_attr: TokenStream, item: TokenStream) -> TokenStream {
             Err(e) => e,
         }
     }});
-    // Generate the final TokenStream
-    quote! {
-        #func
-    }
-    .into()
+    func.into_token_stream().into()
 }
 
 #[proc_macro_attribute]
@@ -73,34 +69,39 @@ pub fn export_openxr(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
     .into()
 }
-
 #[proc_macro_attribute]
 pub fn handle(attr: TokenStream, item: TokenStream) -> TokenStream {
     let item: ItemStruct = syn::parse(item).unwrap();
     let attr: Type = syn::parse(attr).unwrap();
+    let attr_name = match &attr {
+        Type::Path(type_path) => type_path.path.segments.last().unwrap().ident.to_string(),
+        _ => panic!("Expected a path type"),
+    };
     let ty = item.ident.clone();
-    let mod_name = Ident::new(&item.ident.to_string().to_snake_case(), item.ident.span());
+    let destroy_fn_name = Ident::new(
+        &format!("xr_destroy_{}", attr_name.to_snake_case()),
+        ty.span(),
+    );
+
     quote! {
         #item
 
-        mod #mod_name {
-	        #[doc(hidden)]
-	        static REGISTRY: std::sync::LazyLock<dashmap::DashMap<u64, super::#ty, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>> = std::sync::LazyLock::new(|| std::default::Default::default());
-	        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-
-	        #[doc(hidden)]
-	        impl quark::handle::HandleData for super::#ty {
-				type Handle = #attr;
-
-	            fn registry<'a>() -> &'a dashmap::DashMap<u64, Self, std::hash::BuildHasherDefault<rustc_hash::FxHasher>> {
-	                &REGISTRY
-	            }
-	            fn counter<'a>() -> &'a std::sync::atomic::AtomicU64 {
-	                &COUNTER
-	            }
-	        }
+        impl Handle<#ty> for #attr {
+            fn from_raw(raw: u64) -> Self {
+                Self::from_raw(raw)
+            }
+            fn into_raw(self) -> u64 {
+                self.into_raw()
+            }
         }
-    }.into()
+
+        #[quark::wrap_openxr]
+        pub fn #destroy_fn_name(handle: #attr) -> XrResult {
+            handle.remove_data();
+            Ok(())
+        }
+    }
+    .into()
 }
 
 struct OxrFns {
